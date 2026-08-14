@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.7.11925.98 stable
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PLAIN_TEXT_TO_HTML_CONVERTER", "PLAIN_TEXT_TO_HTML_CONVERTER.csproj", "{A0FB7438-8DB3-4982-84C2-6AE2DB090735}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A0FB7438-8DB3-4982-84C2-6AE2DB090735}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0FB7438-8DB3-4982-84C2-6AE2DB090735}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0FB7438-8DB3-4982-84C2-6AE2DB090735}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0FB7438-8DB3-4982-84C2-6AE2DB090735}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {202043AE-3180-4056-9A22-A10A2FE359A1}
+	EndGlobalSection
+EndGlobal
