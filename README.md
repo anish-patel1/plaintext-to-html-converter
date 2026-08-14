@@ -70,7 +70,7 @@ All settings live in `appsettings.json`:
 | `ConnectionStrings:DefaultConnection` | Connection string to the target database |
 
 Set this to your target database before running. Example used during
-development targets `ARL_TALENT` on a local SQL Express instance.
+development targets `DB_NAME` on a local SQL Express instance.
 
 ## Stored procedures
 
