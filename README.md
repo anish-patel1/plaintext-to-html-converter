@@ -72,8 +72,8 @@ connection styles, so either form works:
 
 | Style | Example `Data Source` | Notes |
 |---|---|---|
-| Named instance | `ACLDMS01\SQLEXPRESS` | Uses SQL Server Browser (UDP 1434) over TCP. Also works via Shared Memory when the app runs on the SQL host using the short machine name. |
-| Explicit TCP port | `ACLDMS01,1433` | Bypasses SQL Server Browser entirely; recommended for remote connections if you know the port. |
+| Named instance | `YOUR_SERVER\YOUR_INSTANCE` | Uses SQL Server Browser (UDP 1434) over TCP. Also works via Shared Memory when the app runs on the SQL host using the short machine name. |
+| Explicit TCP port | `YOUR_SERVER,YOUR_PORT` | Bypasses SQL Server Browser entirely; recommended for remote connections if you know the port. |
 
 Before fetching records the application:
 
@@ -98,14 +98,14 @@ Run with the `--diag` flag to also log a network probe that isolates the
 failure layer before SQL even connects:
 
 ```
-SQL Server: ACLDMS01\SQLEXPRESS
-Database: AXI_TALENT
+SQL Server: YOUR_SERVER\YOUR_INSTANCE
+Database: YOUR_DB
 Connection encryption: Enabled
 TrustServerCertificate: Enabled
 Connection timeout: 30 s
-[Network probe] Host: ACLDMS01, Instance: SQLEXPRESS
-[Network probe] DNS resolved: ACLDMS01 -> 192.168.6.120
-[Network probe] TCP 192.168.6.120:1433 reachable: True (15 ms)
+[Network probe] Host: YOUR_SERVER, Instance: YOUR_INSTANCE
+[Network probe] DNS resolved: YOUR_SERVER -> <ip-address>
+[Network probe] TCP <ip-address>:1433 reachable: True (15 ms)
 SQL connection test failed: SQL Server not found or not accessible...
 ```
 
@@ -136,10 +136,10 @@ Recommended connection-string guidance:
 
 - Use `Connect Timeout=30` (or similar) rather than `0` so the tool does not
   hang indefinitely when SQL Server is unreachable.
-- For an explicit **TCP port**, use `Data Source=HOST,PORT` (e.g.
-  `ACLDMS01,1433`) — this avoids dependency on SQL Server Browser.
-- For a local **named instance** on the same server, use `HOST\INSTANCE`
-  (e.g. `ACLDMS01\SQLEXPRESS`), which connects via Shared Memory.
+- For an explicit **TCP port**, use `Data Source=HOST,PORT` — this avoids
+  dependency on SQL Server Browser.
+- For a local **named instance** on the same server, use `HOST\INSTANCE`,
+  which connects via Shared Memory.
 - Keep `Encrypt=True;TrustServerCertificate=True` as a safety net; it is
   harmless over Shared Memory and covers the case where SqlClient falls back
   to TCP.
