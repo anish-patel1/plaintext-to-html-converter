@@ -46,9 +46,29 @@ class Program
         if (!string.IsNullOrWhiteSpace(connectionString))
             settings.ConnectionStrings!.DefaultConnection = connectionString;
         var batchSize = int.TryParse(GetArgValue(args, "--batch-size"), out var bs) && bs > 0 ? bs : 500;
+        var diag = args.Contains("--diag");
 
         logger.LogInformation("Mode: {Mode}", dryRun ? "DRY-RUN (no DB writes)" : "LIVE");
         logger.LogInformation("Batch size: {BatchSize}", batchSize);
+        logger.LogInformation("Diagnostics: {Diag}", diag ? "Enabled" : "Disabled");
+
+        // 0. Validate configuration and test SQL connectivity before processing
+        if (string.IsNullOrWhiteSpace(settings.ConnectionStrings?.DefaultConnection))
+        {
+            logger.LogError("Connection string 'DefaultConnection' is missing or empty in appsettings.json. Aborting.");
+            Log.CloseAndFlush();
+            return 2;
+        }
+
+        logger.LogInformation("Testing SQL Server connectivity...");
+        var connectionOk = await db.TestConnectionAsync(diag);
+        if (!connectionOk)
+        {
+            logger.LogError("SQL Server connection failed. Aborting before processing records.");
+            Log.CloseAndFlush();
+            return 2;
+        }
+        logger.LogInformation("SQL connectivity confirmed. Proceeding.");
 
         // 1. Fetch plain-text records
         logger.LogInformation("Fetching plain-text records from DB...");

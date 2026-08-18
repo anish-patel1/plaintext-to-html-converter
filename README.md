@@ -20,31 +20,94 @@ For each row it processes:
 5. Logs the outcome per row to `conversion_log.csv`, writes runtime logs to
    `Logs/yyyy-MM-dd.txt` via Serilog, and prints a console summary.
 
+Before any rows are processed, the application runs a lightweight SQL
+**connectivity test** — see [Connection handling](#connection-handling).
+
 ## Conversion rules
 
-Source text is inconsistent across real-world data, so the following marker
-styles are recognized:
+The source text is typed by humans, so the list-marker style is not fixed.
+`HtmlConverter` detects what is actually present in each block and renders
+matching HTML:
 
-- `1. Text...` — number, period, space
-- `1.Text...` — number, period, no space
-- `1) Text...` — number, closing parenthesis
-- `1 Text...` — bare number followed by a capital letter, no punctuation
-- Numbered items containing nested `•` / `·` sub-bullets → rendered as a
-  nested `<ul>` inside the `<li>`
-- Plain paragraphs with no numbering → wrapped in `<p>`
-- Text with only `•`/`·` bullets and no numbering → wrapped in `<ul>`
+| Detected style | Examples | Rendered |
+|---|---|---|
+| Numbered | `1.` `1 .` `1)` `(1)` `01.` `10.` `9 Text` | `<ol>` |
+| Letter | `a.` `a)` `A.` `(A)` | `<ol type="a">` / `<ol type="A">` |
+| Roman | `i.` `ii.` `iii.` / `I.` `II.` | `<ol type="i">` / `<ol type="I">` |
+| Bullets (inline) | `•` `·` `▪` `◦` | `<ul>` |
+| Bullets (line-start) | `-` `*` `–` `—` at the start of a line | `<ul>` |
+| Plain paragraphs | no markers recognized | `<p>` |
+
+Additional behaviours:
+
+- A space between the number and the delimiter (`9 . Text`) is tolerated.
+- Numbered items containing nested `•`/`·` sub-bullets are rendered as a
+  nested `<ul>` inside the `<li>`.
 - Lists missing their first marker (text starts directly at "2.") → the
-  text before the first valid marker becomes item 1
+  text before the first valid marker becomes item 1.
+- Non-breaking spaces are normalized so pasted text does not break detection.
 
-Candidate numbered markers are validated as a strictly ascending sequence
-(1, 2, 3, 4…) before being treated as real delimiters, and at least two
-valid markers are required to classify the text as a numbered list. This
-prevents a stray digit inside normal prose (a date, a quantity, a reference
+### Anti‑false‑positive guard
+
+Candidate markers are validated as a strictly ascending sequence
+(1,2,3… / a,b,c… / i,ii,iii…) starting at 1 or 2, and at least two valid
+markers are required to classify a block as a list. This prevents a stray
+digit or letter inside normal prose (a date, a quantity, a reference
 number) from causing a false split.
+
+Because only **line‑start** dashes/asterisks are treated as bullets,
+mid‑sentence hyphens (`well-known`, `5-10`) are never converted to list
+items. A single lone dash line is not treated as a bullet either; a single
+unambiguous glyph (`•`) still is.
 
 All extracted text is HTML-encoded (decoded first to avoid double-encoding
 source values already stored as entities) so raw `&`, `<`, `>`, `"` don't
 break the resulting markup.
+
+## Connection handling
+
+The connection string is read from `appsettings.json` and is **not**
+hard-coded in C#. `SqlClient`'s connection string natively supports both
+connection styles, so either form works:
+
+| Style | Example `Data Source` | Notes |
+|---|---|---|
+| Named instance | `ACLDMS01\SQLEXPRESS` | Uses SQL Server Browser (UDP 1434) over TCP. Also works via Shared Memory when the app runs on the SQL host using the short machine name. |
+| Explicit TCP port | `ACLDMS01,1433` | Bypasses SQL Server Browser entirely; recommended for remote connections if you know the port. |
+
+Before fetching records the application:
+
+1. Validates that `ConnectionStrings:DefaultConnection` is present.
+2. Logs non-secret connection diagnostics (server, database, encryption,
+   trust-server-certificate, connect timeout). **The password and the full
+   connection string are never logged.**
+3. Attempts to open a SQL connection as a connectivity test.
+4. If the connection fails, the application stops before processing any
+   records.
+
+On failure, the error is classified to distinguish the likely cause:
+DNS/server resolution, SQL instance not found, TCP failure, SQL login
+failure, SSL/certificate failure, database-not-found/access-denied, or
+timeout. The full exception chain (and each SQL error number, for
+`SqlException`) is logged, preserving the original exception as the inner
+exception.
+
+### Connection failure diagnosis
+
+Run with the `--diag` flag to also log a network probe that isolates the
+failure layer before SQL even connects:
+
+```
+SQL Server: ACLDMS01\SQLEXPRESS
+Database: AXI_TALENT
+Connection encryption: Enabled
+TrustServerCertificate: Enabled
+Connection timeout: 30 s
+[Network probe] Host: ACLDMS01, Instance: SQLEXPRESS
+[Network probe] DNS resolved: ACLDMS01 -> 192.168.6.120
+[Network probe] TCP 192.168.6.120:1433 reachable: True (15 ms)
+SQL connection test failed: SQL Server not found or not accessible...
+```
 
 ## Prerequisites
 
@@ -60,7 +123,7 @@ All settings live in `appsettings.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=YOUR_SERVER;Database=YOUR_DB;User Id=...;Password=...;TrustServerCertificate=True;"
+    "DefaultConnection": "Data Source=YOUR_SERVER\\INSTANCE;Initial Catalog=YOUR_DB;User ID=sa;Password=***;Connect Timeout=30;Encrypt=True;TrustServerCertificate=True;"
   }
 }
 ```
@@ -69,8 +132,19 @@ All settings live in `appsettings.json`:
 |---|---|
 | `ConnectionStrings:DefaultConnection` | Connection string to the target database |
 
-Set this to your target database before running. Example used during
-development targets `DB_NAME` on a local SQL Express instance.
+Recommended connection-string guidance:
+
+- Use `Connect Timeout=30` (or similar) rather than `0` so the tool does not
+  hang indefinitely when SQL Server is unreachable.
+- For an explicit **TCP port**, use `Data Source=HOST,PORT` (e.g.
+  `ACLDMS01,1433`) — this avoids dependency on SQL Server Browser.
+- For a local **named instance** on the same server, use `HOST\INSTANCE`
+  (e.g. `ACLDMS01\SQLEXPRESS`), which connects via Shared Memory.
+- Keep `Encrypt=True;TrustServerCertificate=True` as a safety net; it is
+  harmless over Shared Memory and covers the case where SqlClient falls back
+  to TCP.
+- Put the real password only in the deployed file — never in code or the
+  repository.
 
 ## Stored procedures
 
@@ -115,6 +189,7 @@ Optional flags:
 | `--dry-run` | Convert and log only, no DB writes | off |
 | `--connection-string "..."` | Override the connection string in config | — |
 | `--batch-size N` | Rows per checkpoint | 500 |
+| `--diag` | Log full connection network probe + verbose diagnostics | off |
 
 ## Publishing
 
@@ -134,6 +209,8 @@ them if you need a runtime-bundled deployment.
   as a new list item and will merge into the previous item's text.
 - Sub-heading-style items (a bolded heading followed by bullets) are
   converted as plain list-item text, not styled headings.
+- Detection is heuristic; a rare prose run such as "1 apple and 2 oranges"
+  may still be read as a list (the ascending-sequence rule is the guard).
 - Designed for one column / one table per run via the fetch stored
   procedure. Point the procedure at a different table and re-run for each
   column you need to convert.
